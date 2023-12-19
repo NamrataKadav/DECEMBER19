@@ -1,1 +1,2 @@
 Hello world!
+Checking protection rule for production branch.
