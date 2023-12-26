@@ -1,0 +1,76 @@
+name: QA CICD
+on:
+    pull_request: 
+        branches:
+            - QA-release
+        paths:
+            - 'force-app/**'    
+
+jobs:
+    build:
+        runs-on: Ubuntu-latest
+
+        steps:
+        # Checkout the code to run on VM or server    
+        -   name: Checkout Code
+            uses: actions/checkout@v2
+            with:
+                fetch-depth: 0
+        
+        # Install npm for installation of sdfx cli 
+        -   name: Install NPM
+            run: |
+                npm install
+
+        # Install the SFDX CLI using npm command
+        -   name: Install the SFDX CLI
+            run: |
+                npm install sfdx-cli --global
+                sfdx --version
+                sfdx force --help
+        
+        # Install PMD Scanner for checking violations
+        -   name: Install Scanner
+            run: |
+                sfdx plugins install @salesforce/sfdx-scanner 
+                        
+        # Run PMD Scanner and Check any violations
+        -   name: Apex static analysis
+            run: |
+                violations=$(grep -c '<testcase' sfdx-scanner-results.xml)
+                if [ "$violations" -gt 0 ]; then
+                    echo "Code scan detected $violations violations. Failing the build."
+                    exit 1
+                else
+                    echo "No violations found. Build passed."
+                fi   
+        # Authenticate Salesforce QA org
+        -   name : login to QA environment using JWT token
+            run: sf org login jwt --clientid 3MVG9n_HvETGhr3C.QlCiaTjaSikIrV4VdsisUu8Adf91yGTrrlW60SYYSE.EaQXTNqa.6wU9pF4N1sxC4Qe2 --keyfile D:\Projects\CICD\JWT\server.key --username accountmanagement@varasi.com --alias myQAOrg    
+        #create scratch org
+        -   name: 'Create scratch org'
+            run: sfdx force:org:create -f config/project-scratch-def.json -a temp-scratch-org -s -d 1
+        # Push source to scratch-org
+        -   name: 'Push source to scratch-org'
+            run: sfdx force:source:push
+        # Run Apex tests in scratch-org
+        -   name: Run Apex Tests
+            run: sfdx force:apex:test:run -u temp-scratch-org -c -w 10
+        # Check Apex code coverage
+        -   name: Get Code Coverage
+            run: |
+                # Get the latest test run ID
+                testRunId=$(sfdx force:apex:test:run:list -u temp-scratch-org --json | jq -r '.result.tests[0].id')
+
+                # Get code coverage for the latest test run
+                sfdx force:apex:test:report -u temp-scratch-org -i $testRunId --json | jq '.result.coverage' 
+        # Delete Scratch org
+        -   name: Delete Scratch Org
+            run: |
+                sfdx force:org:delete --targetusername temp-scratch-org --noprompt     
+        # Deploy to Dev salesforce org if merged in QA branch
+        -   name: Deploy to Dev
+            run: |
+                sfdx force:source:deploy -p force-app/main/default -u dev-org-alias -w 10
+            env:
+                SFDX_DEFAULTDEVHUBUSERNAME: hub
