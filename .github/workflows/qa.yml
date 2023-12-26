@@ -2,7 +2,7 @@ name: QA CICD
 on:
     pull_request: 
         branches:
-            - QA-release   
+            - main-release   
 jobs:
     build:
         runs-on: Ubuntu-latest
