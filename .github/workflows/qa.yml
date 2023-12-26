@@ -2,10 +2,7 @@ name: QA CICD
 on:
     pull_request: 
         branches:
-            - QA-release
-        paths:
-            - 'force-app/**'    
-
+            - QA-release   
 jobs:
     build:
         runs-on: Ubuntu-latest
