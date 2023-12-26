@@ -1,0 +1,40 @@
+name: GitHub Actions Demo
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on:
+  push:
+    branches:
+      - Dev
+  
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      #Checkout the Source cod from the latest commit
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      #We need to install NPM so that we can install SFDX CLI tools
+      - name: Install NPM
+        run: |
+          npm install
+      #Install the SFDX CLI using npm command
+      - name: Install the SFDX CLI
+        run: |
+          npm install sfdx-cli --global
+          sfdx force --help
+      # We need to use a key value stored as GitHub secret and 
+      # create a .key file since 'sf org login jwt' command expects a path 
+      # to .key file as a parameter
+      - name: Create server key file
+        run: |
+          touch server.key
+          echo -e "${{ secrets.SFDX_JWT_KEY_FILE }}" >> server.key
+      #Authenticate Salesforce ORG
+      - name: Authenticate Salesforce ORG
+        run: |
+          sfdx force:auth:jwt:grant --clientid "${{ secrets.SFDX_DEV_CLIENT_ID }}" --jwtkeyfile server.key --username "${{ secrets.DEV_ORG_USERNAME }}" --instanceurl https://login.salesforce.com
+      #Validate source code against the org
+      - name: Validae Source Code Against Salesforce ORG
+        run: |
+          sfdx force:source:deploy -p force-app -c -u "${{ secrets.DEV_ORG_USERNAME }}"
